@@ -1,0 +1,49 @@
+version: "3"
+services:
+  localstack:
+    container_name: localstack_main
+    image: localstack/localstack:latest
+    environment:
+      - AWS_DEFAULT_REGION=us-east-1
+      - EDGE_PORT=4566
+      - SERVICES=s3, sqs, kinesis, cloudwatch, dynamo
+    ports:
+      - "4549-4566:4549-4566"
+    volumes:
+      - "${TEMPDIR:-/tmp/localstack}:/tmp/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - ./aws:/docker-entrypoint-initaws.d
+    command: sh -c "docker-entrypoint-initaws.d/init-service.sh"
+    networks:
+      - backend
+
+  # postgres set up
+  postgres:
+    container_name: postgres
+    image: postgres:latest
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=abx_chat_db
+    networks:
+      - backend
+
+  flyway:
+    image: flyway/flyway
+    depends_on:
+      - postgres
+    command: -url=jdbc:postgresql://postgres:5432/abx_chat_db -user=postgres -password=postgres -locations=filesystem:/flyway/sql migrate
+    volumes:
+      - ../src/main/resources/db/migration:/flyway/sql
+    networks:
+      - backend
+
+volumes:
+  pgdata:
+
+networks:
+    backend: {}
